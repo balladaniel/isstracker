@@ -555,12 +555,7 @@
 						variance_combinations: variance_combinations
 					};
 				};
-				
-				
-			var array = [1, 4, 5, 7, 10, 15, 13, 19, 20, 8, 10, 10, 29, 22, 21, 22, 4, 3, 2, 2, 8, 14, 15, 2, 2, 3, 1, 1, 2, 2, 25, 24, 24, 24, 50, 50]
-			
-			console.log(ss.jenks(array, 4))
-			
+						
 			var values = [];
 			var classes = [];
 			var colors = [];
@@ -586,14 +581,16 @@
 			}
 			
 			function start(mode, classnum){
+				var success = false;
 				if (classnum > 2 && classnum < values.length) {				
 					switch (mode) {
 						case 'jenks':	
 							classes = ss.jenks(values, classnum);
 							classes.pop(); // remove last, since its the max value
 							console.log('Jenks classes: ', classes);
+							success = true;
 							break;
-						case 'equalinterval':	
+						case 'equalinterval':
 							classes = [];
 							var minmax = ss.extent(values);
 							console.log('min:', minmax[0], ', max:', minmax[1])
@@ -606,12 +603,15 @@
 								i = i + oneclass;
 							}
 							console.log('EI classes: ', classes);
+							success = true;
 							break;
 						default:
-							console.log('wrong call')
+							console.error('wrong classification type (choose from "jenks", "equalinterval")')
 					}
-					colors = chroma.scale('OrRd').colors(classnum);
-					generateLegend();
+					if (success) {
+						colors = chroma.scale('OrRd').colors(classnum);
+						generateLegend();
+					}
 				} else {
 					console.error('Classnumber out of range (must be: 2 < x <', values.length, '(featurecount))!');
 				}
@@ -628,7 +628,7 @@
 			start('jenks', 5);
 			
 			testdata.eachLayer(function(layer) {
-			  layer.setStyle(stylefn(layer.feature.properties.density))
+				layer.setStyle(stylefn(layer.feature.properties.density))
 			});
 						
 			function generateLegend() {
