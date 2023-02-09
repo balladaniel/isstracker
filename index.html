@@ -2,11 +2,17 @@
 
 <html>
 	<head>
+		<meta charset="utf-8">
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans">
 		<link rel="stylesheet" href="leaflet/leaflet.css" />
 		<script src="leaflet/leaflet.js"></script>
 		<link rel="stylesheet" href="leaflet/leaflet.fullscreen.css" />
-		<script src="leaflet/leaflet.fullscreen.js"></script>
+		<script src="leaflet/leaflet.fullscreen.js"></script>		
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		<script src="leaflet/L.terminator.js"></script>
+		<script src="https://unpkg.com/simple-statistics@7.8.0/dist/simple-statistics.min.js"></script>	
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.0/chroma.min.js"></script>
+		
 		<style>
 			html, body {
 				height: 100%;
@@ -23,17 +29,110 @@
 				left: 0;
 				right: 0;
 			}
+			#infopanel {
+				position: absolute;
+				margin:  auto;
+				bottom: 30px;
+				right: 20px;
+				width: 30%;
+				z-index: 10001;
+				background-color: #ffffff;
+				border-radius: 3px;
+				box-shadow: 3px 3px 8px #00000055;
+				padding: 10px;
+			}
+			.popuprow {
+				display: flex; 
+				flex-direction: row; 
+				justify-content: space-between;
+			}
+			.info {
+				padding: 6px 8px;
+				font: 14px/16px Arial, Helvetica, sans-serif;
+				background: white;
+				background: rgba(255,255,255,0.8);
+				box-shadow: 0 0 15px rgba(0,0,0,0.2);
+				border-radius: 5px;
+			}
+			.legend {
+				line-height: 18px;
+				color: #555;
+			}
+			.legend i {
+				width: 18px;
+				height: 18px;
+				float: left;
+				margin-right: 8px;
+				opacity: 0.7;
+			}
 						
 		</style>
 	</head>
 	<body>
 		
 				<div id="map"></div>
-			
-		
-		
+				<div id="infopanel" style="display: flex; flex-direction: column;">
+					<div>
+						<button id="bFollow" onclick="changeFollowing();">Disable following</button>
+						<button id="bDN" onclick="changeDN();">Disable day/night terminator</button>
+						<button id="bOP" onclick="changeOP();">Disable info popup</button>
+					</div>
+					<div>
+						<canvas id="chart" width="100%" height="300px"></canvas>
+					</div>
+					<div>
+						<canvas id="chart2" width="100%" height="300px"></canvas>
+					</div>
+					<span id="lastupdate" style="font-size: 10pt; align-self: center; margin-top: 4px; height: 22px;"></span>
+				</div>
+				
 		<script>
 				
+			var follow = true;
+			var DN = true;
+			var openpopup = true;
+			
+			function changeFollowing() {
+				var bFollow = document.getElementById('bFollow');
+				if (follow == false) {
+					bFollow.innerHTML = "Disable following";
+					follow = true;
+					console.log('following: ', follow);
+				} else if (follow == true) {
+					bFollow.innerHTML = "Enable following";	
+					follow = false;
+					console.log('following: ', follow);				
+				}
+			};
+			
+			function changeDN() {
+				var bDN = document.getElementById('bDN');
+				if (DN == false) {
+					bDN.innerHTML = "Disable day/night terminator";
+					terminator.setStyle({fillOpacity: 0.2});
+					DN = true;
+					console.log('dn: ', DN);
+				} else if (DN == true) {
+					bDN.innerHTML = "Enable day/night terminator";	
+					terminator.setStyle({fillOpacity: 0});
+					DN = false;
+					console.log('dn: ', DN);				
+				}
+			};
+			
+			function changeOP() {
+				var bOP = document.getElementById('bOP');
+				if (openpopup == false) {
+					bOP.innerHTML = "Disable info popup";
+					openpopup = true;
+					console.log('openpopup: ', openpopup);
+				} else if (openpopup == true) {
+					bOP.innerHTML = "Enable info popup";
+					openpopup = false;
+					marker.closePopup();
+					console.log('openpopup: ', openpopup);				
+				}
+			};
 			
 			// map div object, main Leaflet object:
 			var map = L.map('map').setView([0,0], 3); 
@@ -44,29 +143,206 @@
 				attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 			}).addTo(map);
 			
+			var terminator = L.terminator().addTo(map);
+			terminator.setStyle({fillOpacity: 0.2});
+			setInterval(function() {
+				terminator.setTime();
+			}, 60000); // Every minute
+			
 			var geojson;
 			var markers = L.featureGroup();
 			markers.addTo(map);
 			var marker = L.marker([0,0]); 
 			var popup;
 			var linelatlngs = [];
+			var pointinfo = [];
 			var polyline;
 			
+			// CHART
+			
+			var data = {
+				datasets: [
+				  { 
+					borderColor: "#ff6583",
+					backgroundColor: "#ff658355",
+					fill: false,
+					data: [],
+					label: "Latitude (deg)",
+					yAxisID: "y1"
+				  },
+				  {
+					borderColor: "#309fe9",
+					backgroundColor: "#309fe955",
+					fill: false,
+					data: [],
+					label: "Longitude (deg)",
+					yAxisID:"y2"
+				  }
+				],
+				labels: []
+			  };
+			  
+			var options = {
+				responsive: true,
+				interaction: {
+					mode: 'index',
+					intersect: false
+				},
+				elements: {
+					rectangle: {
+						borderWidth: 2
+					},
+					point: {
+						radius: 0
+					}
+				},
+				layout: {
+				  "padding": 0
+				},
+				legend: {
+				  "display": true,
+				  "labels": {
+					"boxWidth": 16
+				  }
+				},
+				maintainAspectRatio: false,
+				responsive: true,
+				scales: {
+					"y1": { 
+							title: {
+								display: true,
+								text: 'Latitude (deg)'						
+							},
+							position: 'left',
+							afterFit: function(scaleInstance) {
+								scaleInstance.width = 90; 
+							}
+					},
+					"y2": {
+							title: {
+								display: true,
+								text: 'Longitude (deg)'						
+							},
+							position: 'right',
+							grid: {
+							  drawOnChartArea: false, // only want the grid lines for one axis to show up
+							},
+							afterFit: function(scaleInstance) {
+								scaleInstance.width = 80; 
+							}
+					}
+				},
+				tooltips: {
+				  "intersect": false,
+				  "mode": "index",
+				  "position": "nearest",
+				  "callbacks": {}
+				},
+				animation: false
+			};
+				
+			var type = "line";
+
+			var myChart = new Chart(document.getElementById("chart").getContext('2d'), {options: options, data: data, type: type});
+			
+			var data2 = {
+				datasets: [
+				  {
+					borderColor: "#45bfc0",
+					backgroundColor: "#45bfc055",
+					fill: false,
+					data: [],
+					label: "Velocity (km/h)",
+					yAxisID:"y3"
+				  },
+				  {
+					borderColor: "#ff9731",
+					backgroundColor: "#ff973155",
+					fill: false,
+					data: [],
+					label: "Altitude (km)",
+					yAxisID:"y4"
+				  }
+				],
+				labels: []
+			  };
+			var options2 = {
+				responsive: true,
+				interaction: {
+					mode: 'index',
+					intersect: false
+				},
+				elements: {
+					rectangle: {
+						borderWidth: 2
+					},
+					point: {
+						radius: 0
+					}
+				},
+				layout: {
+				  "padding": 0
+				},
+				legend: {
+				  "display": true,
+				  "labels": {
+					"boxWidth": 16
+				  }
+				},
+				width: 600,
+				maintainAspectRatio: false,
+				responsive: true,
+				scales: {
+					"y3": { 
+							title: {
+								display: true,
+								text: 'Velocity (km/h)'						
+							},
+							position: 'left',
+							afterFit: function(scaleInstance) {
+								scaleInstance.width = 90; 
+							  }
+					},
+					"y4": {
+							title: {
+								display: true,
+								text: 'Altitude (km)'						
+							},
+							position: 'right',
+							grid: {
+							  drawOnChartArea: false, // only want the grid lines for one axis to show up
+							},
+							afterFit: function(scaleInstance) {
+								scaleInstance.width = 80; 
+							  }
+					}
+				},
+				tooltips: {
+				  "intersect": false,
+				  "mode": "index",
+				  "position": "nearest",
+				  "callbacks": {}
+				},
+				animation: false
+			};
+			
+			var myChart2 = new Chart(document.getElementById("chart2").getContext('2d'), {options: options2, data: data2, type: type});
+			
 			map.whenReady( async () => {
-				// Get the initial location of the International Space Station (ISS).
+				// get initial location of ISS
 				data_geojson = await getLocation();
 				let lat = data_geojson.features[0].geometry.coordinates[1];
 				let lon = data_geojson.features[0].geometry.coordinates[0];
 				let alt = data_geojson.features[0].properties.altitude;
 				let time = data_geojson.features[0].properties.timestamp;
 				let vel = data_geojson.features[0].properties.velocity;
-				popup = L.popup().setContent('lat: ' + lat + '°<br>' + 'lon: ' + lon + '°<br>' + 'alt: ' + alt + ' km<br>' + 'time: ' + unixTimestampSolver(time) + ' (your time)<br>' + 'velocity: ' + vel + ' km/h');
+				let vis = data_geojson.features[0].properties.visibility;
+				popup = L.popup().setContent('<div style="display: flex; flex-direction: column; "><div style="font-weight: bold; margin-bottom: 8px; align-self: center;">International Space Station</div><div style="display: flex; flex-direction: column;"><div class="popuprow"><span>Latitude:</span><span>' + lat.toFixed(7) + '°</span></div><div class="popuprow"><span>Longitude:</span><span>' + lon.toFixed(7) + '°</span></div>' + '<div class="popuprow"><span>Altitude:</span><span>' + alt.toFixed(3) + ' km</span></div>' + '<div class="popuprow"><span>Velocity:</span><span>' + vel.toFixed(3) + ' km/h</span></div>' + '<div class="popuprow"><span>Visibility:</span><span>' + vis + '</span></div>' + '<div class="popuprow"><span>Browser time:</span><span>' + unixTimestampSolver(time, "full") + '</span></div></div></div>');
 				marker.bindPopup(popup).openPopup();
 				marker.setLatLng([lat, lon]);
 				map.setView([lat, lon], 5);	
-				// Add the ISS location as a source.
 				 marker.addTo(markers);
-				// Update the source from the API every 2 seconds.
+				// update every 2 secs
 				const updateSource = setInterval(async () => {
 					data_geojson = await getLocation(updateSource);
 					let lat = data_geojson.features[0].geometry.coordinates[1];
@@ -74,20 +350,43 @@
 					let alt = data_geojson.features[0].properties.altitude;
 					let time = data_geojson.features[0].properties.timestamp;
 					let vel = data_geojson.features[0].properties.velocity;
-					popup = L.popup().setContent('lat: ' + lat + '°<br>' + 'lon: ' + lon + '°<br>' + 'alt: ' + alt + ' km<br>' + 'time: ' + unixTimestampSolver(time) + ' (your time)<br>' + 'velocity: ' + vel + ' km/h');
-					marker.bindPopup(popup).openPopup();
-					marker.setLatLng([lat, lon]);
-					// Fly the map to the location.
-					map.setView([lat, lon]);	
+					let vis = data_geojson.features[0].properties.visibility;
 					
+					// marker update
+					popup = L.popup().setContent('<div style="display: flex; flex-direction: column; "><div style="font-weight: bold; margin-bottom: 8px; align-self: center; font-size: 10pt;">International Space Station</div><div style="display: flex; flex-direction: column;"><div class="popuprow"><span>Latitude:</span><span>' + lat.toFixed(7) + '°</span></div><div class="popuprow"><span>Longitude:</span><span>' + lon.toFixed(7) + '°</span></div>' + '<div class="popuprow"><span>Altitude:</span><span>' + alt.toFixed(3) + ' km</span></div>' + '<div class="popuprow"><span>Velocity:</span><span>' + vel.toFixed(3) + ' km/h</span></div>' + '<div class="popuprow"><span>Visibility:</span><span>' + vis + '</span></div>' + '<div class="popuprow"><span>Browser time:</span><span>' + unixTimestampSolver(time, "full") + '</span></div></div></div>');
+					marker.bindPopup(popup, {autoPan:false, minWidth: 206});
+					if (openpopup) {
+						marker.openPopup();
+					};
+					marker.setLatLng([lat, lon]);
+					if (follow) {
+						map.setView([lat, lon]);
+					};
+					
+					// polyline update
 					linelatlngs.push([lat, lon]);
+					pointinfo.push({"coords": [lat, lon], "altitude": alt, "timestamp": time, "velocity": vel});
 					if (polyline != null) {polyline.remove()};
-					polyline = L.polyline(linelatlngs, {color: 'red'}).addTo(map);				
+					polyline = L.polyline(linelatlngs, {color: 'red'}).addTo(map);	
+					
+					// UI timestamp update
+					var lastupdate_element = document.getElementById('lastupdate');
+					lastupdate_element.innerHTML = 'Last update: ' + unixTimestampSolver(time, "full");
+					
+					// chart update
+					myChart.data.datasets[0].data.push(lat);
+					myChart.data.datasets[1].data.push(lon);
+					myChart.data.labels.push(unixTimestampSolver(time, "hhmmss"));
+					myChart2.data.datasets[0].data.push(vel);
+					myChart2.data.datasets[1].data.push(alt);
+					myChart2.data.labels.push(unixTimestampSolver(time, "hhmmss"));
+					myChart.update();	
+					myChart2.update();									
 				}, 2000);
 				 
 				async function getLocation(updateSource) {
 					console.log('Getting ISS location...')
-					// Make a GET request to the API and return the location of the ISS.
+					// GET request
 					try {
 						const response = await fetch(
 							'https://api.wheretheiss.at/v1/satellites/25544', { method: 'GET' }
@@ -95,7 +394,7 @@
 						const data = await response.json();
 						console.info('Retrieved ISS location:', data)						
 						
-						// Return the location of the ISS as GeoJSON.
+						// return as GEOJSON
 						return {
 							'type': 'FeatureCollection',
 							'features': [
@@ -108,23 +407,251 @@
 									"properties": {
 										"altitude": data.altitude,
 										"timestamp": data.timestamp,
-										"velocity": data.velocity
+										"velocity": data.velocity,
+										"visibility": data.visibility
 									}
 								}
 							]
 						};
 					} catch (err) {
-						// If the updateSource interval is defined, clear the interval to stop updating the source.
 						if (updateSource) clearInterval(updateSource);
 						throw new Error(err);
 					}
 				}
 			});
 			
-			function unixTimestampSolver(ts) {
-				var date = new Date(ts*1000).toLocaleString("hu-HU");
+			function unixTimestampSolver(ts, mode) {
+				if (mode == "hhmmss") {
+					var date = new Date(ts*1000).toLocaleString("hu-HU", {hour: '2-digit', minute: '2-digit', second: '2-digit'});				
+				} else if (mode == "full") {
+					var date = new Date(ts*1000).toLocaleString("hu-HU");				
+				} else if (mode == "fullutc") {
+					var date = new Date(ts*1000).toUTCString();				
+				}
 				return date;
 			}
+				
+				
+			
+			ss.jenks = function(data, n_classes) {
+
+				// sort data in numerical order
+				data = data.slice().sort(function (a, b) { return a - b; });
+
+				// get our basic matrices
+				var matrices = ss.jenksMatrices(data, n_classes),
+					// we only need lower class limits here
+					lower_class_limits = matrices.lower_class_limits,
+					k = data.length - 1,
+					kclass = [],
+					countNum = n_classes;
+
+				// the calculation of classes will never include the upper and
+				// lower bounds, so we need to explicitly set them
+				kclass[n_classes] = data[data.length - 1];
+				kclass[0] = data[0];
+
+				// the lower_class_limits matrix is used as indexes into itself
+				// here: the `k` variable is reused in each iteration.
+				while (countNum > 1) {
+					kclass[countNum - 1] = data[lower_class_limits[k][countNum] - 2];
+					k = lower_class_limits[k][countNum] - 1;
+					countNum--;
+				}
+
+				return kclass;
+			};
+				ss.jenksMatrices = function(data, n_classes) {
+
+					// in the original implementation, these matrices are referred to
+					// as `LC` and `OP`
+					//
+					// * lower_class_limits (LC): optimal lower class limits
+					// * variance_combinations (OP): optimal variance combinations for all classes
+					var lower_class_limits = [],
+						variance_combinations = [],
+						// loop counters
+						i, j,
+						// the variance, as computed at each step in the calculation
+						variance = 0;
+
+					// Initialize and fill each matrix with zeroes
+					for (i = 0; i < data.length + 1; i++) {
+						var tmp1 = [], tmp2 = [];
+						for (j = 0; j < n_classes + 1; j++) {
+							tmp1.push(0);
+							tmp2.push(0);
+						}
+						lower_class_limits.push(tmp1);
+						variance_combinations.push(tmp2);
+					}
+
+					for (i = 1; i < n_classes + 1; i++) {
+						lower_class_limits[1][i] = 1;
+						variance_combinations[1][i] = 0;
+						// in the original implementation, 9999999 is used but
+						// since Javascript has `Infinity`, we use that.
+						for (j = 2; j < data.length + 1; j++) {
+							variance_combinations[j][i] = Infinity;
+						}
+					}
+
+					for (var l = 2; l < data.length + 1; l++) {
+
+						// `SZ` originally. this is the sum of the values seen thus
+						// far when calculating variance.
+						var sum = 0, 
+							// `ZSQ` originally. the sum of squares of values seen
+							// thus far
+							sum_squares = 0,
+							// `WT` originally. This is the number of 
+							w = 0,
+							// `IV` originally
+							i4 = 0;
+
+						// in several instances, you could say `Math.pow(x, 2)`
+						// instead of `x * x`, but this is slower in some browsers
+						// introduces an unnecessary concept.
+						for (var m = 1; m < l + 1; m++) {
+
+							// `III` originally
+							var lower_class_limit = l - m + 1,
+								val = data[lower_class_limit - 1];
+
+							// here we're estimating variance for each potential classing
+							// of the data, for each potential number of classes. `w`
+							// is the number of data points considered so far.
+							w++;
+
+							// increase the current sum and sum-of-squares
+							sum += val;
+							sum_squares += val * val;
+
+							// the variance at this point in the sequence is the difference
+							// between the sum of squares and the total x 2, over the number
+							// of samples.
+							variance = sum_squares - (sum * sum) / w;
+
+							i4 = lower_class_limit - 1;
+
+							if (i4 !== 0) {
+								for (j = 2; j < n_classes + 1; j++) {
+									if (variance_combinations[l][j] >=
+										(variance + variance_combinations[i4][j - 1])) {
+										lower_class_limits[l][j] = lower_class_limit;
+										variance_combinations[l][j] = variance +
+											variance_combinations[i4][j - 1];
+									}
+								}
+							}
+						}
+
+						lower_class_limits[l][1] = 1;
+						variance_combinations[l][1] = variance;
+					}
+
+					return {
+						lower_class_limits: lower_class_limits,
+						variance_combinations: variance_combinations
+					};
+				};
+				
+				
+			var array = [1, 4, 5, 7, 10, 15, 13, 19, 20, 8, 10, 10, 29, 22, 21, 22, 4, 3, 2, 2, 8, 14, 15, 2, 2, 3, 1, 1, 2, 2, 25, 24, 24, 24, 50, 50]
+			
+			console.log(ss.jenks(array, 4))
+			
+			var values = [];
+			var classes = [];
+			var colors = [];
+			
+			function onEachFeature(feature, layer){	
+				values.push(feature.properties.density);
+			}
+			
+			function getColor(d) {
+				for (var i = 0; i<classes.length; i++) {
+					if (d < classes[i+1]) {
+						return colors[i];
+					} 					
+				}
+				return colors.at(-1);	// highest group
+			}
+
+			function stylefn(value){
+				return {
+					fillColor: getColor(value),
+					fillOpacity: 1
+				};			
+			}
+			
+			function start(mode, classnum){
+				if (classnum > 2 && classnum < values.length) {				
+					switch (mode) {
+						case 'jenks':	
+							classes = ss.jenks(values, classnum);
+							classes.pop(); // remove last, since its the max value
+							console.log('Jenks classes: ', classes);
+							break;
+						case 'equalinterval':	
+							classes = [];
+							var minmax = ss.extent(values);
+							console.log('min:', minmax[0], ', max:', minmax[1])
+							var range = minmax[1]-minmax[0];
+							console.log('data range:', range)
+							var oneclass = range/classnum;
+							console.log('one class:', oneclass);
+							for (var i=minmax[0]; i<range;) {
+								classes.push(i);
+								i = i + oneclass;
+							}
+							console.log('EI classes: ', classes);
+							break;
+						default:
+							console.log('wrong call')
+					}
+					colors = chroma.scale('OrRd').colors(classnum);
+					generateLegend();
+				} else {
+					console.error('Classnumber out of range (must be: 2 < x <', values.length, '(featurecount))!');
+				}
+			}
+				
+			var x=new XMLHttpRequest();
+			x.open('get', 'us-states.geojson', false);
+			x.send();
+			var d=JSON.parse(x.responseText);
+			var testdata = L.geoJSON(d, {onEachFeature: onEachFeature}).addTo(map);
+			
+			console.log('loaded values for classification:', values);				
+			
+			start('jenks', 5);
+			
+			testdata.eachLayer(function(layer) {
+			  layer.setStyle(stylefn(layer.feature.properties.density))
+			});
+						
+			function generateLegend() {
+				var legend = L.control({position: 'bottomleft'});
+
+				legend.onAdd = function (map) {
+
+					var div = L.DomUtil.create('div', 'info legend');
+
+					// loop through our density intervals and generate a label with a colored square for each interval
+					for (var i = 0; i < classes.length; i++) {
+						div.innerHTML +=
+							'<i style="background: ' + colors[i] + '"></i> ' +
+							(i == 0 ? '< ' : Math.round(classes[i]) + (classes[i + 1] ? ' &ndash; ' : '')) + (classes[i + 1] ? Math.round(classes[i + 1]) + '<br>' : ' <');
+					}
+
+					return div;
+				};
+
+				legend.addTo(map);
+			}
+			
+			
 			  </script>	
 	</body>
 </html>
