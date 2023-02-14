@@ -388,9 +388,12 @@
 					console.log('Getting ISS location...')
 					// GET request
 					try {
+						console.time('Request took');
 						const response = await fetch(
 							'https://api.wheretheiss.at/v1/satellites/25544', { method: 'GET' }
 							);
+						console.timeEnd('Request took');
+						
 						const data = await response.json();
 						console.info('Retrieved ISS location:', data)						
 						
@@ -561,7 +564,9 @@
 			var colors = [];
 			
 			function onEachFeature(feature, layer){	
-				values.push(feature.properties.density);
+				if (feature.properties.density != null) {
+					values.push(feature.properties.density);
+				};
 			}
 			
 			function getColor(d) {
@@ -576,11 +581,19 @@
 			function stylefn(value){
 				return {
 					fillColor: getColor(value),
-					fillOpacity: 1
+					fillOpacity: 0.7,
+					color: 'white',
+					weight: 2
 				};			
 			}
 			
-			function start(mode, classnum){
+			function start(mode, classnum, colorramp){
+				console.group('Classification and legend generation:');
+				console.log('Mode:', mode);
+				console.log('Number of classes:', classnum);
+				console.log('Color palette:', colorramp);
+				console.groupEnd();
+				
 				var success = false;
 				if (classnum > 2 && classnum < values.length) {				
 					switch (mode) {
@@ -605,11 +618,21 @@
 							console.log('EI classes: ', classes);
 							success = true;
 							break;
+						case 'quantile':
+							classes = [];
+							for (var i = 0; i<classnum; i++) {
+								var currentq = (1/classnum)*i;
+								classes.push(ss.quantile(values, currentq));
+							}				
+							console.warn('Quantile classes at the middle might be wrong (compared to GIS SW)');		
+							console.log('Quantile classes: ', classes);	
+							success = true;
+							break;
 						default:
-							console.error('wrong classification type (choose from "jenks", "equalinterval")')
+							console.error('wrong classification type (choose from "jenks", "equalinterval", "quantile")')
 					}
 					if (success) {
-						colors = chroma.scale('OrRd').colors(classnum);
+						colors = chroma.scale(colorramp).colors(classnum);
 						generateLegend();
 					}
 				} else {
@@ -623,9 +646,13 @@
 			var d=JSON.parse(x.responseText);
 			var testdata = L.geoJSON(d, {onEachFeature: onEachFeature}).addTo(map);
 			
-			console.log('loaded values for classification:', values);				
+			console.log('Loaded values from GeoJSON for classification:', values);				
 			
-			start('jenks', 5);
+			start('quantile', 5, 'RdPu');
+			// color ramps:
+			//    for sequential data: 	OrRd, PuBu, BuPu, Oranges, BuGn, YlOrBr, YlGn, Reds, RdPu, Greens, YlGnBu, Purples, GnBu, Greys, YlOrRd, PuRd, Blues, PuBuGn
+			//    for diverging data:	Spectral, RdYlGn, RdBu, PiYG, PRGn, RdYlBu, BrBG, RdGy, PuOr
+ 			//    for qualitative data:	Accent, Set1, Paired, Set2, Dark2, Set3, Pastel1, Pastel2
 			
 			testdata.eachLayer(function(layer) {
 				layer.setStyle(stylefn(layer.feature.properties.density))
@@ -635,19 +662,16 @@
 				var legend = L.control({position: 'bottomleft'});
 
 				legend.onAdd = function (map) {
-
 					var div = L.DomUtil.create('div', 'info legend');
-
-					// loop through our density intervals and generate a label with a colored square for each interval
 					for (var i = 0; i < classes.length; i++) {
 						div.innerHTML +=
 							'<i style="background: ' + colors[i] + '"></i> ' +
 							(i == 0 ? '< ' : Math.round(classes[i]) + (classes[i + 1] ? ' &ndash; ' : '')) + (classes[i + 1] ? Math.round(classes[i + 1]) + '<br>' : ' <');
 					}
-
 					return div;
 				};
-
+				
+				console.log('Legend generated.');
 				legend.addTo(map);
 			}
 			
