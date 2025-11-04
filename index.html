@@ -136,6 +136,7 @@
 			// map div object, main Leaflet object:
 			var map = L.map('map').setView([0,0], 3); 
 			map.addControl(new L.Control.Fullscreen());
+			map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet ' + L.version + '</a>');
 			
 			// base maps
 			var OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -340,8 +341,9 @@
 				marker.bindPopup(popup).openPopup();
 				marker.setLatLng([lat, lon]);
 				map.setView([lat, lon], 5);	
-				 marker.addTo(markers);
-				// update every 2 secs
+				marker.addTo(markers);
+
+				// retrieve every 2 secs:
 				const updateSource = setInterval(async () => {
 					data_geojson = await getLocation(updateSource);
 					let lat = data_geojson.features[0].geometry.coordinates[1];
@@ -366,7 +368,7 @@
 					linelatlngs.push([lat, lon]);
 					pointinfo.push({"coords": [lat, lon], "altitude": alt, "timestamp": time, "velocity": vel});
 					if (polyline != null) {polyline.remove()};
-					polyline = L.polyline(linelatlngs, {color: 'red'}).addTo(map);	
+					polyline = L.polyline(linelatlngs, {color: 'red', attribution: "<a href='https://wheretheiss.at/w/developer'>ISS data: WTIA REST API (Bill Shupp / © 2013 Linzig, LLC)</a>"}).addTo(map);	
 					
 					// UI timestamp update
 					var lastupdate_element = document.getElementById('lastupdate');
