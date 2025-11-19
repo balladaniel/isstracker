@@ -176,17 +176,18 @@
                 var chartDiv = L.DomUtil.create('div', 'infopanel');
 				var content = 
 				`<div>
-						<button id="bFollow" onclick="changeFollowing();">Disable following</button>
-						<button id="bDN" onclick="changeDN();">Disable day/night terminator</button>
-						<button id="bOP" onclick="changeOP();">Disable info popup</button>
-					</div>
-					<div>
-						<canvas id="chart" width="100%" height="300px"></canvas>
-					</div>
-					<div>
-						<canvas id="chart2" width="100%" height="300px"></canvas>
-					</div>
-					<span id="lastupdate" style="font-size: 10pt; align-self: center; margin-top: 4px; height: 22px;"></span>
+					<button id="bFollow" onclick="changeFollowing();">Disable following</button>
+					<button id="bDN" onclick="changeDN();">Disable day/night terminator</button>
+					<button id="bOP" onclick="changeOP();">Disable info popup</button>
+				</div>
+				<div>
+					<canvas id="chart" width="100%" height="300px"></canvas>
+				</div>
+				<div>
+					<canvas id="chart2" width="100%" height="300px"></canvas>
+				</div>
+				<span id="lastupdate" style="font-size: 10pt; align-self: center; margin-top: 4px; height: 22px;"></span>
+				<span style="font-size: 6pt; align-self: center; margin-top: 4px;"><i>Known issue: charts don't update while tab is in background.</i></span>
 				`
 				
                 chartDiv.innerHTML += content;
@@ -408,7 +409,7 @@
 					
 					// UI timestamp update
 					var lastupdate_element = document.getElementById('lastupdate');
-					lastupdate_element.innerHTML = 'Last update: ' + unixTimestampSolver(time, "full");
+					lastupdate_element.innerHTML = `Last update: ` + unixTimestampSolver(time, "full");
 					
 					// chart update
 					myChart.data.datasets[0].data.push(lat);
