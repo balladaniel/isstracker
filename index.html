@@ -118,15 +118,42 @@
 				}
 			};
 			
-			// map div object, main Leaflet object:
-			var map = L.map('map').setView([0,0], 3); 
-			map.addControl(new L.Control.Fullscreen());
-			map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet ' + L.version + '</a>');
-			
 			// base maps
 			var OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-			}).addTo(map);
+				attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+			})
+
+			var carto_attrib = '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+			var cartodb_dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}' + (L.Browser.retina ? '@2x.png' : '.png'), {
+				attribution: carto_attrib,
+				subdomains: 'abcd',
+				maxZoom: 20,
+				minZoom: 0
+			});
+			var cartodb_voyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}' + (L.Browser.retina ? '@2x.png' : '.png'), {
+				attribution: carto_attrib,
+				subdomains: 'abcd',
+				maxZoom: 20,
+				minZoom: 0
+			});
+			var cartodb_positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}' + (L.Browser.retina ? '@2x.png' : '.png'), {
+				attribution: carto_attrib,
+				subdomains: 'abcd',
+				maxZoom: 20,
+				minZoom: 0
+			});
+			var baseMaps = {
+				"OpenStreetMap": OSM,
+				"CARTO Dark": cartodb_dark,
+				"CARTO Voyager": cartodb_voyager,
+				"CARTO Positron": cartodb_positron
+			};
+
+			// map div object, main Leaflet object:
+			var map = L.map('map', {layers: [cartodb_voyager]}).setView([0,0], 3); 
+			map.addControl(new L.Control.Fullscreen());
+			map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet ' + L.version + '</a>');
+			var layerControl = L.control.layers(baseMaps, null, {collapsed: false}).addTo(map);
 			
 			var terminator = L.terminator().addTo(map);
 			terminator.setStyle({fillOpacity: 0.2});
