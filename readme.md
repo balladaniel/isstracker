@@ -1,0 +1,3 @@
+A simple local webpage for visualizing ISS location on a Leaflet web map and its other properties on Chart.js charts. Data fetched every 2 seconds, provided by: [WTIA REST API (Bill Shupp / © 2013 Linzig, LLC)](https://wheretheiss.at/w/developer). Uses [Leaflet](https://github.com/Leaflet/Leaflet), [Leaflet.Terminator](https://github.com/joergdietrich/Leaflet.Terminator), [Leaflet.fullscreen](https://github.com/Leaflet/Leaflet.fullscreen) and [Chart.js](https://github.com/chartjs/Chart.js).
+
+Demo, just for fun. Not maintained, provided as is, without warranty of any kind.
