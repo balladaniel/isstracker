@@ -3,3 +3,5 @@ A simple local webpage for visualizing location of the [International Space Stat
 Known issue: charts do not update while the browser tab is inactive (in the background).
 
 Demo, just for fun. Non-responsive. Not maintained, provided as is, without warranty of any kind.
+
+![Screenshot of the webpage](screenshot.png)
